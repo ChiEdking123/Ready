@@ -37,6 +37,31 @@ adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>
 # 然后看 http://127.0.0.1:9222/json/list 里的控制台
 ```
 
+## 发布签名
+
+仓库里没有签名密钥（`.gitignore` 挡住 `*.jks` 与 `*.keystore`）。发布包在构建机上用仓库外的密钥签名：
+
+```powershell
+dotnet build src/Ready/Ready.csproj -c Release -f net10.0-android `
+  -p:JavaSdkDirectory="$env:JAVA_HOME" `
+  -p:AndroidSdkDirectory="$env:ANDROID_HOME" `
+  -p:AndroidKeyStore=true `
+  -p:AndroidSigningKeyStore="$env:READY_KEYSTORE" `
+  -p:AndroidSigningKeyAlias=ready `
+  -p:AndroidSigningStorePass="$env:READY_KS_PASS" `
+  -p:AndroidSigningKeyPass="$env:READY_KS_PASS"
+```
+
+**密钥不要进仓库、不要上传、不要贴进 Issue**：Android 用签名判定「同一个应用」，换密钥会让已安装的用户无法覆盖升级，只能卸载重装并丢数据。目前的发布密钥固定为 `CN=Ready!, OU=Ready Contributors`，不会轮换。
+
+构建完务必用 keytool 复核，别只看构建成功：
+
+```powershell
+keytool -printcert -jarfile app.ready.gamedesign-Signed.apk | Select-String "CN=|SHA256:"
+```
+
+如果出现 `CN=Android Debug`，说明这次构建落回了调试密钥，不能发布。
+
 ## 验证包是否完整
 
 ```powershell

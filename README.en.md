@@ -37,7 +37,9 @@ Ready! opens straight into a text field. The one-sentence summary is the only re
 
 See [Releases](https://github.com/ChiEdking123/Ready-/releases).
 
-- **Android** — `app.ready.gamedesign-*-Signed.apk`, arm64 only, Android 6.0 (API 23) and above.
+- **Android** — `ready-0.1.0-arm64.apk`, arm64 only, Android 6.0 (API 23) and above. You will need to allow installs from unknown sources.
+
+  Release builds are signed with a project-owned key (`CN=Ready!, OU=Ready Contributors`). It will not be rotated, since changing it would block in-place upgrades for installed users.
 - **Windows** — build from source for now.
 
 ## Build from source

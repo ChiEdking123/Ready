@@ -44,7 +44,9 @@ Ready! 的做法是：打开就能打字。一句话总结是唯一必填项，�
 
 到 [Releases](https://github.com/ChiEdking123/Ready-/releases) 取最新版本。
 
-- **Android**：`app.ready.gamedesign-*-Signed.apk`，仅 arm64，Android 6.0（API 23）及以上。
+- **Android**：`ready-0.1.0-arm64.apk`，仅 arm64，Android 6.0（API 23）及以上。安装前需允许「安装未知来源应用」。
+
+  发布包用项目自建的密钥签名（`CN=Ready!, OU=Ready Contributors`）。因为换签名会让已装用户无法覆盖升级，这个密钥不会更换。
 - **Windows**：目前需自行构建，见下节。
 
 ## 从源码构建
