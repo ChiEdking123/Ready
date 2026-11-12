@@ -1,0 +1,26 @@
+# 默认由 Git 自动判定文本 / 二进制，检出时沿用本机 core.autocrlf 设置。
+* text=auto
+
+# 明确二进制，避免被当成文本改写换行。
+*.png binary
+*.ico binary
+*.jpg binary
+*.webp binary
+*.apk binary
+*.aab binary
+*.so binary
+*.jks binary
+*.keystore binary
+
+# 这些文件必须保持 LF，否则脚本或工具会读坏。
+*.sh text eol=lf
+*.ps1 text
+*.razor text
+*.cs text
+*.css text
+*.js text
+*.json text
+
+# 合并策略：生成的锁文件不参与冲突解决。
+package-lock.json merge=binary
+*.lock merge=binary

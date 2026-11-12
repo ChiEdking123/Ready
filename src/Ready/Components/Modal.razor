@@ -1,0 +1,74 @@
+@inject IJSRuntime JS
+@if (Visible)
+{
+    <div class="modal-backdrop" @onclick="Dismiss">
+        @* id 由调用方给（App.razor 三个对话框各一个），没有就是本实例独有的随机后缀：
+           以前固定写 "dialog-title"，三个实例同时在场时页面上会出现重复 id，
+           aria-labelledby 会指到第一个——也就是可能指向一个根本没显示在屏幕上的标题。
+           tabindex="-1" 让容器本身可聚焦，焦点管理失败时也有落点。
+           @onkeydown 挂在容器上：焦点被圈在里面，Escape 才一定收得到。 *@
+        <section class="modal" role="dialog" aria-modal="true" tabindex="-1"
+                 aria-labelledby="@TitleId" aria-describedby="@MessageId"
+                 @onclick:stopPropagation="true" @onkeydown="OnKeyDown" @ref="dialog">
+            <div class="modal-symbol"><Icon Name="@IconName" Size="24" /></div>
+            <h2 id="@TitleId">@Title</h2>
+            <p id="@MessageId">@Message</p>
+            <div class="modal-actions">
+                <button class="button text-button" @onclick="Dismiss">@CancelText</button>
+                <button class="button text-button @(Danger ? "danger-text" : "")" @onclick="ConfirmAsync">@ConfirmText</button>
+            </div>
+        </section>
+    </div>
+}
+@code {
+    [Parameter] public bool Visible { get; set; }
+
+    /// <summary>稳定 id 前缀。不传就用本实例的随机后缀。</summary>
+    [Parameter] public string? Id { get; set; }
+
+    [Parameter] public string Title { get; set; } = "确认操作";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public string IconName { get; set; } = "info";
+    [Parameter] public string ConfirmText { get; set; } = "确认";
+    [Parameter] public string CancelText { get; set; } = "取消";
+    [Parameter] public bool Danger { get; set; }
+
+    /// <summary>点遮罩或按 Escape 时触发；给了它就走它，否则退回 <see cref="Cancel"/>。</summary>
+    [Parameter] public EventCallback OnDismiss { get; set; }
+
+    [Parameter] public EventCallback Confirm { get; set; }
+    [Parameter] public EventCallback Cancel { get; set; }
+
+    ElementReference dialog;
+    bool wasVisible;
+    readonly string uid = Guid.NewGuid().ToString("N")[..8];
+
+    string TitleId => $"{(Id ?? "dialog-" + uid)}-title";
+    string MessageId => $"{(Id ?? "dialog-" + uid)}-message";
+
+    // 焦点只在状态真正翻转的那一刻搬一次。放在 OnAfterRenderAsync 里是因为
+    // ElementReference 要等 DOM 存在之后才有效；early-return 避免每次重渲染都重新
+    // 记录「打开前的焦点」，那会把用户用 Tab 移到的位置覆盖掉。
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Visible == wasVisible) return;
+        wasVisible = Visible;
+        try
+        {
+            if (Visible) await JS.InvokeVoidAsync("ready.openDialog", dialog);
+            else await JS.InvokeVoidAsync("ready.closeDialog");
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape") return;
+        await Dismiss();
+    }
+
+    Task Dismiss() => OnDismiss.HasDelegate ? OnDismiss.InvokeAsync() : Cancel.InvokeAsync();
+
+    async Task ConfirmAsync() => await Confirm.InvokeAsync();
+}

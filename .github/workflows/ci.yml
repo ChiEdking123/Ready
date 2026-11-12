@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # 测试项目只编译模型与存储层，不需要 Android SDK，因此在 ubuntu 上跑最快。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore tests/Ready.Tests/Ready.Tests.csproj
+
+      - name: Test
+        run: dotnet test tests/Ready.Tests/Ready.Tests.csproj --no-restore --verbosity normal

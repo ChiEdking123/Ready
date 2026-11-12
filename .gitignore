@@ -1,0 +1,33 @@
+# 构建产物
+bin/
+obj/
+artifacts/
+TestResults/
+.vs/
+.vscode/
+*.user
+*.suo
+
+# 签名与发布产物
+*.keystore
+*.jks
+*.apk
+*.aab
+local.properties
+*.pfx
+*.snk
+
+# 本应用的数据文件（万一有人把数据目录指到仓库里）
+ready-data.json
+ready-backup-*.json
+*.broken
+crash.log
+
+# 编辑器与系统
+.idea/
+.DS_Store
+Thumbs.db
+
+# 本地工具生成的临时目录
+*acl-recovery/
+.workbuddy/

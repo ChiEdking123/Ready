@@ -1,0 +1,640 @@
+@implements IDisposable
+@inject IAppStore Store
+@inject IJSRuntime JS
+@inject IPlatformFiles Files
+
+<div class="app @(Store.Document.Settings.ReduceMotion ? "reduce-motion" : "") @(Store.Document.Settings.CompactMode ? "compact" : "")">
+    <div class="shell">
+        @* 侧栏顶部以前放了一张品牌图。它只是「回到捕捉页」的另一个入口，而下面第一项
+           就是「捕捉」，所以删掉不是少了一条路，而是少了一次重复。品牌本身仍在窗口
+           图标、任务栏和标签页图标上。 *@
+        <nav class="rail" aria-label="主导航">
+            <button class="rail-item @(view == "capture" ? "active" : "")" @onclick='() => Navigate("capture")' aria-current="@(view == "capture" ? "page" : null)">
+                <span class="rail-glyph"><Icon Name="spark" Size="22" /></span>
+                <span class="rail-label">捕捉</span>
+            </button>
+            <button class="rail-item @(view == "library" ? "active" : "")" @onclick='() => Navigate("library")' aria-current="@(view == "library" ? "page" : null)">
+                <span class="rail-glyph"><Icon Name="book" Size="22" /></span>
+                <span class="rail-label">构思库</span>
+                @if (Store.Document.Ideas.Count > 0) { <span class="rail-badge">@Store.Document.Ideas.Count</span> }
+            </button>
+            <span class="rail-spacer"></span>
+            <button class="rail-icon @(view == "settings" ? "active" : "")" @onclick='() => Navigate("settings")' aria-label="设置" title="设置" aria-current="@(view == "settings" ? "page" : null)">
+                <Icon Name="settings" Size="22" />
+            </button>
+        </nav>
+
+        <div class="shell-main">
+            <header class="app-bar">
+                <div class="app-bar-title">
+                    @* 标题跟着内容一起淡入，否则会看到「标题瞬间变、内容还在淡」的割裂。 *@
+                    <h1 class="view-title" @key="view">@Heading</h1>
+                </div>
+                <div class="app-bar-actions">
+                    @* 捕捉页的顶栏承担「清除 / 撤回 / 提交」三件事：表单很长，这些都必须在
+                       滚动时也够得到。以前这里放的是「新构思」，它做的事和「清除」完全一样，
+                       所以捕捉页上改成提交按钮，「新构思」只在别的页面出现。 *@
+                    @if (view == "capture")
+                    {
+                        <button class="button text-button top-action" @onclick="ClearDraft" disabled="@(!HasDraftContent)"
+                                title="清除当前填写的内容" aria-label="清除内容" data-clear-action>
+                            <Icon Name="trash" Size="17" /><span class="top-action-label">清除</span>
+                        </button>
+                        @if (Store.CanUndoClear)
+                        {
+                            <button class="button text-button top-action" @onclick="UndoClear" title="撤回刚才的清除" aria-label="撤回清除">
+                                <Icon Name="undo" Size="17" /><span class="top-action-label">撤回</span>
+                            </button>
+                        }
+                        @if (!NativeWindow.IsTouchFirst)
+                        {
+                            <span class="save-hint"><kbd>Ctrl</kbd> + <kbd>S</kbd> @(Store.EditingId is null ? "快速创建" : "快速保存")</span>
+                        }
+                        <button class="button primary create-button" @onclick="SaveFromBar"
+                                disabled="@string.IsNullOrWhiteSpace(Store.Document.Draft.Summary)">
+                            <Icon Name="@(Store.EditingId is null ? "plus" : "check")" Size="18" />
+                            @(Store.EditingId is null ? "创建构思" : "保存修改")
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="button primary" @onclick="NewIdea"><Icon Name="plus" Size="18" />新构思</button>
+                    }
+                </div>
+            </header>
+
+            <main class="content">
+                @* @key 是淡入能生效的关键：view 一变，Blazor 就重建这个 div，新元素上的
+                   CSS animation 自动播一次。只换内容而不换元素，动画不会重播。
+                   过渡状态机在 @code 里（GoTo / SwapViewAsync）。 *@
+                <div class="content-inner view-stage @(leaving is not null ? "is-leaving" : "")" @key="view">
+                    @if (view == "capture")
+                    {
+                        <CaptureView Store="Store" Quote="quote" />
+                    }
+                    else if (view == "library")
+                    {
+                        <LibraryView Store="Store" OnEdit="Edit" OnDelete="AskDelete" OnMessage="Notify" />
+                    }
+                    else
+                    {
+                        <SettingsView Store="Store" OnChanged="StateHasChanged" OnScaleChanged="ApplyScale" OnExport="Export" OnImport="Import" />
+                    }
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <nav class="bottom-nav" aria-label="移动端主导航">
+        <button class="@(view == "capture" ? "active" : "")" @onclick='() => Navigate("capture")'><Icon Name="spark" Size="22" /><span>捕捉</span></button>
+        <button class="@(view == "library" ? "active" : "")" @onclick='() => Navigate("library")'><Icon Name="book" Size="22" /><span>构思库</span></button>
+        <button class="@(view == "settings" ? "active" : "")" @onclick='() => Navigate("settings")'><Icon Name="settings" Size="22" /><span>设置</span></button>
+    </nav>
+
+    @if (scaleHud is not null)
+    {
+        <div class="scale-hud" role="status">@scaleHud%</div>
+    }
+    @if (toast is not null)
+    {
+        <div class="toast" role="status">
+            <span class="toast-icon"><Icon Name="check" Size="18" /></span>@toast
+            <button class="icon-button small" @onclick="DismissToast" aria-label="关闭提示"><Icon Name="close" Size="15" /></button>
+        </div>
+    }
+    <Modal Id="delete-dialog"
+           Visible="deleteTarget is not null"
+           Title="删除这个构思？"
+           Message="@(deleteTarget is null ? "" : $"「{Shorten(deleteTarget.Summary)}」将从本机构思库移除，且无法撤回。")"
+           IconName="trash" ConfirmText="确认删除" Danger="true" Confirm="Delete" Cancel="CancelDelete" OnDismiss="CancelDelete" />
+    <Modal Id="leave-dialog"
+           Visible="pendingNavigation is not null"
+           Title="@(pendingNewIdea ? "开始新的构思？" : Store.EditingId is null ? "离开这个还没创建的构思？" : "放弃对构思的修改？")"
+           Message="@LeaveMessage"
+           ConfirmText="@(pendingNewIdea ? "清空并新建" : "离开")" CancelText="继续编辑" Danger="@pendingNewIdea" Confirm="ConfirmNavigation" Cancel="CancelNavigation" OnDismiss="CancelNavigation" />
+    @* 安卓没有窗口关闭按钮，退出发生在返回键上，所以这是独立于 closePrompt 的一条路径：
+       只有兜底的「有未保存内容」才会走到这里。 *@
+    <Modal Id="exit-dialog"
+           Visible="exitPrompt"
+           Title="退出 Ready!？"
+           Message="@ExitMessage"
+           IconName="close"
+           ConfirmText="退出"
+           CancelText="继续写"
+           Danger="true"
+           Confirm="ConfirmExit" Cancel="CancelExit" OnDismiss="CancelExit" />
+    @* The close question has its own markup so that clicking the dimmed area can mean
+       "never mind" instead of hiding the window, which a shared two-button dialog cannot
+       express. *@
+    @if (closePrompt && NativeWindow.HasDesktopShell)
+    {
+        <div class="modal-backdrop" @onclick="DismissClose">
+            <section class="modal" role="dialog" aria-modal="true" aria-labelledby="close-title" aria-describedby="close-message"
+                     tabindex="-1" @onkeydown="OnCloseDialogKeyDown" @onclick:stopPropagation="true">
+                <div class="modal-symbol"><Icon Name="close" Size="24" /></div>
+                <h2 id="close-title">关闭 Ready!？</h2>
+                <p id="close-message">@CloseMessage</p>
+                <label class="modal-check">
+                    <input type="checkbox" @bind="rememberCloseChoice" />
+                    <span>下次不再询问</span>
+                </label>
+                <div class="modal-actions">
+                    <button class="button text-button" @onclick="StayInTray">留在后台</button>
+                    <button class="button text-button danger-text" @onclick="ExitForReal">彻底关闭</button>
+                </div>
+            </section>
+        </div>
+    }
+</div>
+@code {
+    // 每次启动抽一条开发者语录，会话内不再变：来回切页面时标语跳来跳去会打断思路。
+    // App 组件跟着窗口活到底，所以这个字段就是「本次运行的那一句」。
+    readonly GameQuote quote = GameQuotes.Pick();
+
+    string view = "capture";
+
+    // 淡出阶段的目标页面；null 表示没有切换正在进行中。
+    string? leaving;
+    CancellationTokenSource? viewTimer;
+
+    // 换页时机：比 --md-dur-view-out(0.15s) 早 10ms。此时旧页面还剩一成不到的透明度，
+    // 新页面立刻从 0 开始淡入——两段在视觉上咬合，中间不会出现一帧全空的内容区。
+    // 若等淡出彻底结束再换，那几十毫秒的空白看起来像闪了一下。
+    const int ViewFadeMs = 140;
+
+    string? toast;
+    string? pendingNavigation;
+    bool pendingNewIdea;
+    IdeaRecord? deleteTarget;
+    CancellationTokenSource? toastTimer;
+    CancellationTokenSource? hudTimer;
+    int? scaleHud;
+    bool closePrompt;
+    bool exitPrompt;
+    bool rememberCloseChoice;
+    long lastBackAt;
+    bool composing;
+    bool renderPending;
+    int appliedScale;
+    string? appliedSignature;
+    DotNetObjectReference<App>? scaleWheel;
+
+    string Heading => view switch
+    {
+        "library" => "构思库",
+        "settings" => "设置",
+        _ => Store.EditingId is null ? "捕捉灵感" : "继续完善"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Store.Changed += OnStoreChanged;
+        AppThemeBridge.CloseRequested += OnCloseRequested;
+        AppThemeBridge.BackRequested += OnBackRequested;
+        await Store.LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ctrl + wheel nudges the same interface scale the settings slider drives,
+            // so both entry points share one value and one visual result.
+            scaleWheel ??= DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("ready.registerScaleWheel", scaleWheel);
+                await JS.InvokeVoidAsync("ready.registerImeNotifier", scaleWheel);
+            }
+            catch (JSDisconnectedException) { }
+            catch (InvalidOperationException) { }
+        }
+
+        await ApplyThemeAndScaleAsync(force: firstRender);
+    }
+
+    // The palette is regenerated from the accent hue in app.js, so surfaces, outlines
+    // and text all move with the accent instead of staying a fixed beige. The returned
+    // surface color also repaints the native window so no light strip leaks in dark mode.
+    async Task ApplyThemeAndScaleAsync(bool force = false)
+    {
+        var settings = Store.Document.Settings;
+        var signature = $"{settings.Theme}|{settings.Accent}|{settings.UiScalePercent}";
+        if (!force && signature == appliedSignature) return;
+        appliedSignature = signature;
+        appliedScale = settings.UiScalePercent;
+
+        try
+        {
+            await JS.InvokeVoidAsync("ready.setUiScale", settings.UiScalePercent);
+            var surface = await JS.InvokeAsync<string?>("ready.applyTheme", settings.Theme, settings.Accent);
+            if (!string.IsNullOrWhiteSpace(surface)) NativeWindow.ApplySurface(surface);
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    // While an IME is composing, the textarea holds pinyin that .NET has not seen yet.
+    // Any re-render at this moment writes the stale .NET value back into the field, which
+    // resets the composition and closes the candidate window, so renders are held until
+    // the phrase is committed.
+    [JSInvokable]
+    public void BeginComposition() => composing = true;
+
+    [JSInvokable]
+    public void EndComposition()
+    {
+        composing = false;
+        if (!renderPending) return;
+        renderPending = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    protected override bool ShouldRender()
+    {
+        if (!composing) return true;
+        renderPending = true;
+        return false;
+    }
+
+    // Called from the web view when the user holds Ctrl and turns the wheel. The value
+    // is the same one the settings slider writes, so the two entry points cannot drift.
+    [JSInvokable]
+    public async Task ScaleNudge(int direction)
+    {
+        var next = UiScale.Nudge(Store.Document.Settings.UiScalePercent, direction);
+        if (next == Store.Document.Settings.UiScalePercent) return;
+        Store.Document.Settings.UiScalePercent = next;
+        await Store.UpdateSettingsAsync();
+        await ApplyThemeAndScaleAsync(force: true);
+        await ShowScaleHud(next);
+    }
+
+    // A short pill at the top of the page: at 200 px the pointer is nowhere near the
+    // settings slider, so the change needs to announce itself.
+    async Task ShowScaleHud(int percent)
+    {
+        hudTimer?.Cancel();
+        hudTimer?.Dispose();
+        hudTimer = new CancellationTokenSource();
+        scaleHud = percent;
+        StateHasChanged();
+        try { await Task.Delay(1200, hudTimer.Token); }
+        catch (TaskCanceledException) { return; }
+        scaleHud = null;
+        StateHasChanged();
+    }
+
+    // The window's close button is intercepted natively; the page decides what happens.
+    void OnCloseRequested() => _ = InvokeAsync(() =>
+    {
+        // Android has no close button and no tray, so this question has no answer there.
+        if (!NativeWindow.HasDesktopShell) return;
+        // 每次都从「不记住」开始，勾选是这一次的主动选择。
+        rememberCloseChoice = false;
+        closePrompt = true;
+        StateHasChanged();
+    });
+
+    // 安卓的系统返回键/返回手势从这里进来。每按一次只剥掉一层：先关浮层，再退视图，
+    // 最后才是退出——和系统习惯一致，也不会在设置页误触一下就把应用关掉。
+    void OnBackRequested() => _ = InvokeAsync(HandleBack);
+
+    // 输入框只在 change 时才同步给 .NET（这是保住中文输入法的代价）。所以凡是「离开
+    // 这个字段」的动作——返回、切页、提交、清除、退出——都必须先让 DOM 把当前值派发
+    // 出去；否则 .NET 拿到的还是上一次的值，用户看到「已保存」但内容是旧的。它和
+    // Ctrl+S 走同一条通道（ready.clickSave 开头也是它），组合输入期间它自己会返回。
+    async Task FlushFieldAsync()
+    {
+        try { await JS.InvokeVoidAsync("ready.flushActiveField"); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    async Task HandleBack()
+    {
+        await FlushFieldAsync();
+        if (closePrompt) { closePrompt = false; StateHasChanged(); return; }
+        if (exitPrompt) { exitPrompt = false; StateHasChanged(); return; }
+        if (deleteTarget is not null) { deleteTarget = null; StateHasChanged(); return; }
+        if (pendingNavigation is not null) { CancelNavigation(); StateHasChanged(); return; }
+
+        // 其余视图都叠在捕捉页之上，返回就是「上一层」。
+        if (view != "capture") { await Navigate("capture"); StateHasChanged(); return; }
+
+        // 已经在根视图且有未保存内容：先问，别让双击退出悄悄带走草稿。
+        if (ShouldGuard) { exitPrompt = true; StateHasChanged(); return; }
+
+        var now = Environment.TickCount64;
+        if (now - lastBackAt <= 2000)
+        {
+            lastBackAt = 0;
+            NativeWindow.Exit();
+            return;
+        }
+
+        lastBackAt = now;
+        Toast("再按一次返回键退出。", 2000);
+    }
+
+    // 自动保存关掉时草稿不会写入磁盘，这里不能承诺"会留在本机"。
+    string ExitMessage => Store.Document.Settings.AutosaveDraft
+        ? "当前填写的内容会留在本机草稿里，下次打开可以继续。"
+        : "草稿自动保存已关闭，这些内容不会写入本机文件，退出后就找不回来了。";
+
+    async Task ConfirmExit()
+    {
+        await FlushFieldAsync();
+        exitPrompt = false;
+        NativeWindow.Exit();
+    }
+
+    void CancelExit() => exitPrompt = false;
+
+    string CloseMessage => (Store.Document.Settings.AutosaveDraft, Store.HasUnsavedChanges) switch
+    {
+        (false, true) => "留在后台可以随时回来。彻底关闭会结束应用——草稿自动保存关闭了，这些内容不会写入本机。",
+        (_, true) => "留在后台可以随时回来。彻底关闭会结束应用，未保存的修改会留在草稿里。",
+        _ => "留在后台可以随时回来，彻底关闭会结束应用。"
+    };
+
+    // Clicking outside the dialog only puts the question away; the window stays open.
+    void DismissClose() => closePrompt = false;
+
+    // 这块对话框是手写的（它需要第三个选项「下次不再询问」，共用 Modal 表达不了），
+    // 所以 Escape 也要单独接一下：键盘用户不该只有「点空白处」一种退出方式。
+    Task OnCloseDialogKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape") return Task.CompletedTask;
+        closePrompt = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    // 只有勾了「下次不再询问」才写设置：不勾就是「这次这样，下次还问我」，
+    // 而 CloseBehavior 的 ask 本身就表达这件事，所以不需要额外字段。
+    async Task RememberClose(string behavior)
+    {
+        if (Store.Document.Settings.CloseBehavior == behavior) return;
+        Store.Document.Settings.CloseBehavior = behavior;
+        await Store.UpdateSettingsAsync();
+    }
+
+    async Task StayInTray()
+    {
+        var remember = rememberCloseChoice;
+        closePrompt = false;
+        if (remember) await RememberClose(CloseBehavior.Tray);
+        NativeWindow.HideToTray();
+        StateHasChanged();
+    }
+
+    async Task ExitForReal()
+    {
+        await FlushFieldAsync();
+        var remember = rememberCloseChoice;
+        closePrompt = false;
+        if (remember) await RememberClose(CloseBehavior.Exit);
+        NativeWindow.Exit();
+    }
+
+
+    void OnStoreChanged() => _ = InvokeAsync(StateHasChanged);
+
+    // The draft buttons live in the app bar, so their state comes from the store rather
+    // than from CaptureView. Clear() raises Changed, which re-renders and reveals 撤回.
+    bool HasDraftContent => Store.HasFormContent || Store.EditingId is not null;
+
+    async Task ClearDraft()
+    {
+        await FlushFieldAsync();
+        Store.Clear();
+    }
+
+    void UndoClear() => Store.UndoClear();
+
+    async Task ApplyScale(int percent)
+    {
+        appliedScale = percent;
+        try { await JS.InvokeVoidAsync("ready.setUiScale", percent); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    bool ShouldGuard => view == "capture" && Store.HasFormContent &&
+        (Store.HasUnsavedChanges || Store.EditingId is not null);
+
+    // 自动保存关掉时草稿不会写入磁盘，这里不能承诺"会留在本机"。
+    string LeaveMessage =>
+        pendingNewIdea
+            ? (Store.Document.Settings.AutosaveDraft
+                ? "当前内容会被清空。已经创建过的构思不会受影响。"
+                : "当前内容会被清空，而且草稿自动保存是关闭的，清空后无法找回。")
+            : Store.EditingId is not null
+                ? "修改还没有保存。离开后会恢复你进入编辑前的草稿内容。"
+                : Store.Document.Settings.AutosaveDraft
+                    ? "当前填写的内容会留在本机草稿里，你可以稍后回来继续。"
+                    : "草稿自动保存已关闭，这些内容不会写入本机文件，关掉应用就找不回来了。";
+
+    async Task Navigate(string destination)
+    {
+        await FlushFieldAsync();
+        if (view == destination) return;
+        if (ShouldGuard) { pendingNavigation = destination; return; }
+        GoTo(destination);
+    }
+
+    // 页面切换的唯一入口：先淡出旧页面，180ms 后换页，新元素靠 CSS animation 淡入。
+    void GoTo(string destination)
+    {
+        if (view == destination) return;
+
+        // 减少动效：直接换，连那 180ms 的等待都不留。CSS 那边 .reduce-motion 会把
+        // 动画时长清零，但计时器不在 CSS 的管辖范围内——所以两层必须都跳。
+        if (Store.Document.Settings.ReduceMotion)
+        {
+            ApplyView(destination);
+            StateHasChanged();
+            return;
+        }
+
+        // 淡出途中又点了同一个目标：忽略，不要重新计时。
+        if (leaving == destination) return;
+
+        // 淡出途中点了别的页面：取消旧计时，沿用当前的淡出状态重新计时，
+        // 视觉上仍是「淡出 → 变成另一个页面」，不会闪回。
+        viewTimer?.Cancel();
+        viewTimer?.Dispose();
+        viewTimer = new CancellationTokenSource();
+        leaving = destination;
+        StateHasChanged();
+        _ = SwapViewAsync(destination, viewTimer.Token);
+    }
+
+    async Task SwapViewAsync(string destination, CancellationToken token)
+    {
+        try { await Task.Delay(ViewFadeMs, token); }
+        catch (TaskCanceledException) { return; }
+        if (token.IsCancellationRequested) return;
+        leaving = null;
+        ApplyView(destination);
+        // 页面可能在计时结束时已经被销毁（窗口关闭 / 安卓后台回收）。
+        try { StateHasChanged(); } catch (ObjectDisposedException) { }
+    }
+
+    // 真正的赋值集中在这里：Store.CancelEdit() 必须和 view 同一时刻发生，否则会在
+    // 淡出期间提前触发一次 Changed 重渲染，把正要离开的旧页面刷新一遍。
+    void ApplyView(string destination)
+    {
+        if (view == "capture" && destination != "capture") Store.CancelEdit();
+        view = destination;
+    }
+
+    void ConfirmNavigation()
+    {
+        var destination = pendingNavigation;
+        var startFresh = pendingNewIdea;
+        pendingNavigation = null;
+        pendingNewIdea = false;
+        if (startFresh) { Store.BeginNew(); GoTo("capture"); return; }
+        if (destination is not null) GoTo(destination);
+    }
+
+    void CancelNavigation()
+    {
+        pendingNavigation = null;
+        pendingNewIdea = false;
+    }
+
+    async Task NewIdea()
+    {
+        await FlushFieldAsync();
+        if (ShouldGuard) { pendingNavigation = "capture"; pendingNewIdea = true; return; }
+        Store.BeginNew();
+        // 已经在捕捉页时 GoTo 会直接返回，BeginNew 的效果不受影响。
+        GoTo("capture");
+    }
+
+    async Task Edit(string? id)
+    {
+        await FlushFieldAsync();
+        if (id is null) { Store.BeginNew(); GoTo("capture"); return; }
+        var idea = Store.Document.Ideas.FirstOrDefault(i => i.Id == id);
+        if (idea is null) { Toast("这个构思已经不在了。"); return; }
+        Store.StartEdit(idea);
+        GoTo("capture");
+    }
+
+    // 顶栏的提交按钮：校验 → 落库 → 提示 → 跳构思库。这段动作原本挂在 CaptureView 的
+    // 底部按钮上，按钮搬到顶栏后动作也一起上来，省掉「拿组件引用去转发」这种会静默失效的桥。
+    async Task SaveFromBar()
+    {
+        await FlushFieldAsync();
+        if (string.IsNullOrWhiteSpace(Store.Document.Draft.Summary))
+        {
+            Toast("先用一句话写下你的游戏灵感吧。");
+            return;
+        }
+
+        var editing = Store.EditingId;
+        var saved = editing is null ? await Store.CreateAsync() : await Store.SaveAsync(editing) is not null;
+        Toast(saved
+            ? (editing is null ? "灵感已捕捉！去构思库看看它吧。" : "修改已保存。")
+            : "保存失败，请检查构思内容。");
+        if (saved) GoTo("library");
+    }
+
+    void AskDelete(IdeaRecord idea) { if (Store.Document.Settings.ConfirmDelete) deleteTarget = idea; else _ = DeleteIdea(idea); }
+
+    void CancelDelete() => deleteTarget = null;
+
+    async Task Delete()
+    {
+        // 先关框再删：删除本身要落盘，对话框没理由等它（以前这里还被 toast 的 4 秒拖着）。
+        var target = deleteTarget;
+        deleteTarget = null;
+        StateHasChanged();
+        if (target is not null) await DeleteIdea(target);
+    }
+
+    async Task DeleteIdea(IdeaRecord idea)
+    {
+        await Store.DeleteAsync(idea.Id);
+        Toast("构思已删除。");
+    }
+
+    async Task Export()
+    {
+        try
+        {
+            var fileName = $"ready-backup-{DateTime.Now:yyyy-MM-dd-HHmmss}.json";
+            var saved = await Files.ExportAsync(fileName, Store.ExportJson());
+            if (saved is null) return;
+            // 安卓走的是系统分享面板：备份已经写进缓存，接下来要用户自己挑一个应用保存它。
+            Toast(NativeWindow.ExportUsesShareSheet ? "备份已准备好，选一个应用保存它。" : "备份已导出。");
+        }
+        catch (Exception ex) { Toast("暂时无法导出：" + ex.Message); }
+    }
+
+    async Task Import()
+    {
+        try
+        {
+            var text = await Files.ImportAsync();
+            if (text is null) return;
+            var imported = await Store.ImportAsync(text);
+            Toast(imported.Message);
+        }
+        catch (Exception ex) { Toast("暂时无法导入：" + ex.Message); }
+    }
+
+    // 提示只是副作用：显示完就返回，等待不属于调用方。以前这里是 async Task，
+    // 调用方 await 它就等于替 toast 等满 4 秒——删除对话框和创建后的跳转都卡在这。
+    // 子组件只发一句话，时长取默认值。Toast 多了一个可选参数之后方法组不再能直接
+    // 转成 EventCallback<string>，所以单独留一个单参数入口。
+    void Notify(string message) => Toast(message);
+
+    void Toast(string message, int durationMs = 4000)
+    {
+        toastTimer?.Cancel();
+        toastTimer?.Dispose();
+        toastTimer = new CancellationTokenSource();
+        toast = message;
+        StateHasChanged();
+        _ = HideToastAsync(toastTimer.Token, durationMs);
+    }
+
+    async Task HideToastAsync(CancellationToken token, int durationMs)
+    {
+        try { await Task.Delay(durationMs, token); } catch (TaskCanceledException) { return; }
+        if (token.IsCancellationRequested) return;
+        toast = null;
+        // 页面可能在计时结束的同一刻被销毁，那就不必再渲染了。
+        try { StateHasChanged(); } catch (ObjectDisposedException) { }
+    }
+
+    void DismissToast()
+    {
+        toastTimer?.Cancel();
+        toast = null;
+    }
+
+    static string Shorten(string text) => text.Length <= 24 ? text : text[..24] + "…";
+
+    public void Dispose()
+    {
+        Store.Changed -= OnStoreChanged;
+        AppThemeBridge.CloseRequested -= OnCloseRequested;
+        AppThemeBridge.BackRequested -= OnBackRequested;
+        toastTimer?.Cancel();
+        toastTimer?.Dispose();
+        hudTimer?.Cancel();
+        hudTimer?.Dispose();
+        viewTimer?.Cancel();
+        viewTimer?.Dispose();
+        scaleWheel?.Dispose();
+        try { _ = JS.InvokeVoidAsync("ready.disposeScaleWheel"); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+}

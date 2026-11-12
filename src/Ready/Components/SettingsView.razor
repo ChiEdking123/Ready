@@ -1,0 +1,127 @@
+<div class="page-heading settings-heading"><div><h1>按你的方式创作。</h1></div></div>
+<div class="settings-column">
+    @* 分组标题不再带图标盒：设置页的每一段都是一行行开关，图标只是重复了文字，
+       还额外吃掉一行高度。手机上整块标题区也隐藏——顶栏就写着「设置」。 *@
+    <section class="settings-section">
+        <div class="settings-title"><h2>外观</h2><p>选择让你舒服的工作台。</p></div>
+        <div class="setting-row stacked">
+            <div class="setting-row-text"><label>明暗模式</label><p>浅色、深色，或跟随系统。</p></div>
+            <div class="theme-options">
+                @foreach (var theme in new[] { ("light", "浅色", "light"), ("dark", "深色", "dark"), ("system", "跟随系统", "settings") })
+                {
+                    <button class="theme-option @(Store.Document.Settings.Theme == theme.Item1 ? "selected" : "")" @onclick="() => ChangeTheme(theme.Item1)">
+                        <Icon Name="@theme.Item3" Size="18" /><span>@theme.Item2</span>
+                    </button>
+                }
+            </div>
+        </div>
+        <div class="setting-row stacked">
+            <div class="setting-row-text"><label>主题色</label><p>一点颜色，一点个性。整套界面色调都会跟着变。</p></div>
+            <div class="accent-options">
+                @foreach (var color in new[] { ("coral", "珊瑚橙", "hsl(18 45% 40%)"), ("sage", "鼠尾草绿", "hsl(138 45% 40%)"), ("blue", "雾霾蓝", "hsl(210 45% 40%)"), ("purple", "鸢尾紫", "hsl(272 45% 40%)"), ("yellow", "琥珀黄", "hsl(42 45% 40%)") })
+                {
+                    <button class="accent-option @(Store.Document.Settings.Accent == color.Item1 ? "selected" : "")" style="--swatch:@color.Item3" @onclick="() => ChangeAccent(color.Item1)" aria-label="@color.Item2" title="@color.Item2"><span></span>@if (Store.Document.Settings.Accent == color.Item1) { <Icon Name="check" Size="16" /> }</button>
+                }
+            </div>
+        </div>
+        @* 界面比例只在桌面窗口提供：手机没有 Ctrl+滚轮，双指缩放又是关的，这一行
+           对触屏用户等于「把界面调大再调回来」的噪音。滑杆的 CSS 与模型都留着，
+           Windows 仍然用它。 *@
+        @if (!NativeWindow.IsTouchFirst)
+        {
+            <div class="setting-row stacked">
+                <div class="setting-row-text">
+                    <label for="ui-scale">画面比例</label>
+                    <p>同时放大文字与间距。现在 <strong>@Store.Document.Settings.UiScalePercent%</strong>@(Store.Document.Settings.UiScalePercent switch { 85 => "（最紧凑）", 100 => "（默认）", 112 => "（略大）", 125 => "（较大）", _ => "（最大）" })。@ScaleHint</p>
+                </div>
+                <div class="scale-slider">
+                    <Icon Name="textSize" Size="18" />
+                    <input id="ui-scale" type="range" min="0" max="@(UiScale.Steps.Length - 1)" step="1"
+                           value="@UiScale.NearestIndex(Store.Document.Settings.UiScalePercent)"
+                           aria-label="画面比例" aria-valuetext="@(Store.Document.Settings.UiScalePercent + "%")"
+                           @onchange="ScaleChanged" />
+                    <span class="scale-value">@Store.Document.Settings.UiScalePercent%</span>
+                </div>
+            </div>
+        }
+        <div class="setting-row"><div class="setting-row-text"><label>减少动效</label><p>关闭过渡和装饰动画，保持安静。</p></div><button class="switch @(Store.Document.Settings.ReduceMotion ? "on" : "")" role="switch" aria-checked="@Store.Document.Settings.ReduceMotion" aria-label="减少动效" @onclick='() => Toggle("motion")'><span></span></button></div>
+        <div class="setting-row"><div class="setting-row-text"><label>紧凑布局</label><p>在屏幕上一次显示更多内容。</p></div><button class="switch @(Store.Document.Settings.CompactMode ? "on" : "")" role="switch" aria-checked="@Store.Document.Settings.CompactMode" aria-label="紧凑布局" @onclick='() => Toggle("compact")'><span></span></button></div>
+    </section>
+    <section class="settings-section">
+        <div class="settings-title"><h2>创作与数据</h2><p>你的构思，始终由你掌握。</p></div>
+        <div class="setting-row"><div class="setting-row-text"><label>自动保存草稿</label><p>编辑时自动暂存，未创建的构思也不会轻易丢失。</p></div><button class="switch @(Store.Document.Settings.AutosaveDraft ? "on" : "")" role="switch" aria-checked="@Store.Document.Settings.AutosaveDraft" aria-label="自动保存草稿" @onclick='() => Toggle("autosave")'><span></span></button></div>
+        <div class="setting-row"><div class="setting-row-text"><label>删除前确认</label><p>避免一次误触带走一个好想法。</p></div><button class="switch @(Store.Document.Settings.ConfirmDelete ? "on" : "")" role="switch" aria-checked="@Store.Document.Settings.ConfirmDelete" aria-label="删除前确认" @onclick='() => Toggle("confirm")'><span></span></button></div>
+        @* 关闭行为是桌面窗口语义：安卓没有托盘，也没有「关闭按钮」，整段不呈现。 *@
+        @if (NativeWindow.HasDesktopShell)
+        {
+            <div class="setting-row stacked">
+                <div class="setting-row-text">
+                    <label>关闭窗口时</label>
+                    <p>@CloseHint</p>
+                </div>
+                <div class="segmented close-options" role="radiogroup" aria-label="关闭窗口时">
+                    <button class="@(Store.Document.Settings.CloseBehavior == CloseBehavior.Ask ? "active" : "")" role="radio" aria-checked="@(Store.Document.Settings.CloseBehavior == CloseBehavior.Ask)" @onclick='() => ChangeCloseBehavior(CloseBehavior.Ask)'>每次询问</button>
+                    <button class="@(Store.Document.Settings.CloseBehavior == CloseBehavior.Tray ? "active" : "")" role="radio" aria-checked="@(Store.Document.Settings.CloseBehavior == CloseBehavior.Tray)" @onclick='() => ChangeCloseBehavior(CloseBehavior.Tray)'>留到托盘</button>
+                    <button class="@(Store.Document.Settings.CloseBehavior == CloseBehavior.Exit ? "active" : "")" role="radio" aria-checked="@(Store.Document.Settings.CloseBehavior == CloseBehavior.Exit)" @onclick='() => ChangeCloseBehavior(CloseBehavior.Exit)'>直接退出</button>
+                </div>
+            </div>
+        }
+        <div class="setting-row stacked">
+            <div class="data-actions"><button class="button outlined" @onclick="Export"><Icon Name="download" />导出构思备份</button><button class="button outlined" @onclick="Import"><Icon Name="upload" />导入 JSON 备份</button></div>
+            @* 以前这里还有一整块强调色宣传卡（大标题 + 一段产品自述 + 版本号），
+               它占据了设置页最下方最显眼的位置，却没有任何可操作的东西。版本号是
+               唯一有信息量的那一项，挪进这条脚注就够了。 *@
+            <p class="setting-footnote">数据默认仅保存在本机。备份为可读 JSON 文件，不包含设置和未创建草稿。建议在升级或重装应用前导出。 · 版本 @AppVersion</p>
+        </div>
+    </section>
+</div>
+@code {
+    [Parameter, EditorRequired] public IAppStore Store { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback<int> OnScaleChanged { get; set; }
+    [Parameter] public EventCallback OnExport { get; set; }
+    [Parameter] public EventCallback OnImport { get; set; }
+
+    // 版本号从程序集读，写死在标记里的话改版本就要记得改两处。
+    static string AppVersion => typeof(SettingsView).Assembly.GetName().Version is { } v
+        ? $"{v.Major}.{v.Minor}.{v.Build}"
+        : "0.1.0";
+
+    async Task ChangeTheme(string theme) { Store.Document.Settings.Theme = theme; await Store.UpdateSettingsAsync(); await OnChanged.InvokeAsync(); }
+    async Task ChangeAccent(string accent) { Store.Document.Settings.Accent = accent; await Store.UpdateSettingsAsync(); await OnChanged.InvokeAsync(); }
+
+    async Task ChangeCloseBehavior(string behavior)
+    {
+        Store.Document.Settings.CloseBehavior = CloseBehavior.Normalize(behavior);
+        await Store.UpdateSettingsAsync();
+        await OnChanged.InvokeAsync();
+    }
+
+    // 这一行在触屏上整块不渲染，所以不再需要按平台返回空串。
+    string ScaleHint => "也可以用 Ctrl + 滚轮随时调整。";
+
+    string CloseHint => Store.Document.Settings.CloseBehavior switch
+    {
+        CloseBehavior.Tray => "点关闭后收进系统托盘，构思随时待命。",
+        CloseBehavior.Exit => "点关闭就直接退出，不做任何询问。",
+        _ => "第一次点关闭会问你想留到托盘还是彻底退出，之后可以在这里改。"
+    };
+
+    async Task ScaleChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var index)) return;
+        var percent = UiScale.Steps[Math.Clamp(index, 0, UiScale.Steps.Length - 1)];
+        Store.Document.Settings.UiScalePercent = percent;
+        await Store.UpdateSettingsAsync();
+        await OnScaleChanged.InvokeAsync(percent);
+        await OnChanged.InvokeAsync();
+    }
+
+    async Task Toggle(string name)
+    {
+        switch (name) { case "motion": Store.Document.Settings.ReduceMotion = !Store.Document.Settings.ReduceMotion; break; case "compact": Store.Document.Settings.CompactMode = !Store.Document.Settings.CompactMode; break; case "autosave": Store.Document.Settings.AutosaveDraft = !Store.Document.Settings.AutosaveDraft; break; case "confirm": Store.Document.Settings.ConfirmDelete = !Store.Document.Settings.ConfirmDelete; break; }
+        await Store.UpdateSettingsAsync(); await OnChanged.InvokeAsync();
+    }
+    async Task Export() => await OnExport.InvokeAsync();
+    async Task Import() => await OnImport.InvokeAsync();
+}

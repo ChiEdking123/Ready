@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Ready/Ready.csproj" />
+  <Project Path="src/Ready.WinForms/Ready.WinForms.csproj" />
+  <Project Path="tests/Ready.Tests/Ready.Tests.csproj" />
+</Solution>

@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Windows 宿主（WinForms）。
+
+    为什么不是 WPF / WinUI3：这两个宿主的官方 BlazorWebView 内部都用
+    WebView2CompositionControl / Microsoft.UI.Xaml.Controls.WebView2，也就是 visual hosting
+    （CoreWebView2CompositionController）。微信输入法在这种宿主下拿不到可用的光标矩形，
+    会直接不显示候选窗。WinForms 版的 BlazorWebView 用的是
+    Microsoft.Web.WebView2.WinForms.WebView2，真正的 HWND 托管，和 Edge / Electron 同构。
+
+    界面代码不复制：Components / Models / Services / wwwroot 从 ../Ready 链接过来。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Ready</RootNamespace>
+    <AssemblyName>Ready</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\appicon.ico</ApplicationIcon>
+    <AssemblyTitle>Ready!</AssemblyTitle>
+    <Product>Ready!</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- 共享源码：链接而不是复制，避免两份 UI 分叉 -->
+  <ItemGroup>
+    <Content Include="..\Ready\Components\**\*.razor" Link="Components\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Ready\Models\**\*.cs" Link="Models\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Ready\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- 页面资源必须落在输出目录的 wwwroot 下，BlazorWebView 按相对路径加载 -->
+  <ItemGroup>
+    <Content Include="..\Ready\wwwroot\**\*.*" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Include="Assets\appicon.ico" Link="appicon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <!-- Android 是唯一目标。Windows 端不走 MAUI：它由 src/Ready.WinForms 独立承载，
+         两个项目直接链接共享的 Components / Models / Services / wwwroot，界面只有一份。
+         之所以没有 net10.0-windows 目标，是因为 MAUI 的 Windows 宿主（WinUI3 /
+         WebView2CompositionControl）在 visual hosting 下拿不到输入法光标矩形，第三方
+         输入法不画候选窗；WinForms 宿主走 HWND 才是可用的那一个。 -->
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Ready</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationTitle>Ready!</ApplicationTitle>
+    <ApplicationId>app.ready.gamedesign</ApplicationId>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
+    <SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>
+    <!-- 发布包的关键开关。Debug 默认走 Fast Deployment：托管程序集不打进 APK，而是靠
+         `dotnet build -t:Install` 用 adb 单独推送，这样产出的包拷到手机上手动安装后
+         一启动就会因为找不到程序集而退出。要在真机上手动安装，必须内嵌程序集。 -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <!-- 只出 arm64 真机包：默认会同时打 x86_64（模拟器用），体积翻倍。 -->
+    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <!--
+    体积开关只在 Release 生效，Debug 保持不裁剪（增量构建快，断点看到的类型与源码对得上）。
+
+    AndroidLinkMode 用 SdkOnly 而不是 Full：Full 能再省约 1.5MB，但在 .NET 10 的
+    MAUI Blazor Hybrid 上会让 JS↔.NET 消息通道静默失效——实测模拟器里 Release 包
+    启动后页面停在 index.html 的加载文案上，控制台零报错，window.external 桥、
+    Blazor、DotNet 三个全局对象都齐全，只是渲染永远不开始；同一份代码用 SdkOnly
+    构建就完全正常。TrimmerRootAssembly 保 Blazor 程序集也救不回来，说明被裁掉的
+    不是 RootComponent 那几个类型。**动这个开关必须先在真机上跑一次首屏渲染。**
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <AndroidLinkMode>SdkOnly</AndroidLinkMode>
+    <AndroidLinkResources>true</AndroidLinkResources>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- 图标与启动屏的源都是 PNG，由 tools/make-icons.ps1 从 logo/512x512.png 派生。
+         脚本**不裁切**：源图整幅等比缩放后铺进画布，空出来的地方用作品自带的黑底补满。
+         所以字标永远在画面里占满它原本的 66.6% 宽度——那就是「整幅不裁」的上限。
+
+         两张图的分工不同，别把它们当成同一张：
+         - AppIcon/appicon.png 是透明底的整幅字标（黑底已被反预乘成 alpha）。Color 给黑，
+           它才是自适应图标的底色层；前景层缩到约 0.92 让字标四角落在遮罩安全圆内。
+         - Splash/splash.png 是不透明黑底的整幅字标，直接铺在启动屏上。
+
+         前景层必须透明，否则 Android 13+ 的单色层会变成一整块黑饼。 -->
+    <!-- 不要直接把 MauiIcon 指向 logo/ 里的原图：那是不透明黑底、没有为安全圆留缩放，
+         而且原图与派生图的尺寸约定不同，混用会让自适应图标在圆形遮罩下缺角。 -->
+    <MauiIcon Include="Resources/AppIcon/appicon.png" Color="#000000" />
+    <MauiSplashScreen Include="Resources/Splash/splash.png" Color="#000000" BaseSize="256,256" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+  </ItemGroup>
+</Project>

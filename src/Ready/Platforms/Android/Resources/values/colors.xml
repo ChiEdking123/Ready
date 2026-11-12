@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="colorPrimary">#343E31</color>
+  <color name="colorPrimaryDark">#343E31</color>
+  <color name="colorAccent">#D86E4E</color>
+  <!-- 启动屏底色不在这里声明：MauiSplashScreen 的 Color="#FFFEFA" 已经生成了一份
+       maui_splash_color，同配置下重复定义会让 aapt2 报 duplicate resource。
+       深色版本放在 values-night/colors.xml 里覆盖。 -->
+</resources>

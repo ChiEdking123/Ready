@@ -1,0 +1,68 @@
+<fieldset class="tag-field">
+    <legend class="field-label"><span class="field-number">@Number</span>@Label <span class="field-count">@(Selected.Count > 0 ? Selected.Count.ToString() : "")</span></legend>
+    @if (!string.IsNullOrEmpty(Hint)) { <p class="field-hint">@Hint</p> }
+    <div class="tag-list">
+        @foreach (var tag in Options)
+        {
+            var index = Selected.IndexOf(tag);
+            <button type="button" class="tag @(index >= 0 ? "selected" : "") @(Hero && index == 0 ? "protagonist" : "")" aria-pressed="@(index >= 0)" @onclick="() => Toggle(tag)">
+                @if (index >= 0) { <Icon Name="check" Size="13" /> }
+                @tag
+                @if (Hero && index == 0) { <span class="hero-mark">主角</span> }
+            </button>
+        }
+        <button type="button" class="tag add-tag" @onclick="() => showCustom = !showCustom" aria-expanded="@showCustom"><Icon Name="plus" Size="15" /> 自定义</button>
+    </div>
+    @if (showCustom)
+    {
+        <div class="custom-tag-row">
+            <input @bind="newTag" @bind:event="oninput" @onkeydown="KeyDown" maxlength="30" placeholder="写下你的标签…" aria-label="为@Label添加自定义标签" />
+            <button class="button small" type="button" @onclick="AddCustom" disabled="@string.IsNullOrWhiteSpace(newTag)">添加</button>
+            <button class="icon-button small" type="button" @onclick="() => { showCustom = false; error = null; }" aria-label="取消添加"><Icon Name="close" Size="16" /></button>
+        </div>
+        @if (error is not null) { <span class="field-error">@error</span> }
+    }
+</fieldset>
+@code {
+    [Parameter, EditorRequired] public string Field { get; set; } = "";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public string Number { get; set; } = "";
+    [Parameter] public string Hint { get; set; } = "";
+    [Parameter] public bool Hero { get; set; }
+    [Parameter, EditorRequired] public List<string> Selected { get; set; } = [];
+    [Parameter, EditorRequired] public Dictionary<string, List<string>> Custom { get; set; } = [];
+    [Parameter] public EventCallback Changed { get; set; }
+    bool showCustom;
+    string newTag = "";
+    string? error;
+
+    // 选项目录换过（比如目标受众从旧分组改成玩家类型）之后，老构思里选中的值可能已经
+    // 不在目录里：只按目录渲染的话，计数会显示有选中项，界面上却找不到哪一项能取消。
+    // 这些「孤儿」标签补在末尾画出来，用户看得见也取得掉。
+    IEnumerable<string> Options
+    {
+        get
+        {
+            var all = TagCatalog.All(Field, Custom);
+            return all.Concat(Selected.Where(s => !all.Contains(s, StringComparer.CurrentCultureIgnoreCase)));
+        }
+    }
+    async Task Toggle(string tag)
+    {
+        var index = Selected.FindIndex(t => t.Equals(tag, StringComparison.OrdinalIgnoreCase));
+        if (index >= 0) Selected.RemoveAt(index); else Selected.Add(tag);
+        await Changed.InvokeAsync();
+    }
+    async Task KeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await AddCustom(); }
+    async Task AddCustom()
+    {
+        var value = newTag.Trim();
+        if (value.Length == 0) return;
+        if (TagCatalog.All(Field, Custom).Any(t => t.Equals(value, StringComparison.OrdinalIgnoreCase)))
+        { error = "这个标签已经在选项中了。"; return; }
+        if (!Custom.TryGetValue(Field, out var custom)) { custom = []; Custom[Field] = custom; }
+        custom.Add(value); Selected.Add(value);
+        newTag = ""; error = null; showCustom = false;
+        await Changed.InvokeAsync();
+    }
+}

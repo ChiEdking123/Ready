@@ -1,0 +1,19 @@
+<Project>
+
+  <!-- 版本号的唯一来源。改版本只改这里，两个宿主与界面都会跟着变。 -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <Product>Ready!</Product>
+    <Company>Ready! contributors</Company>
+    <Copyright>Copyright (C) 2026 Ready! contributors</Copyright>
+    <RepositoryUrl>https://github.com/ChiEdking123/Ready</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <!-- 所有项目都按 MIT 分发。 -->
+  <PropertyGroup>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+</Project>

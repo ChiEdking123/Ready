@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- 系统处于深色模式时的启动屏与主色。这里覆盖的是「不同配置」下的同名资源，
+       不会和 values/ 里 MauiSplashScreen 生成的那一份冲突。 -->
+  <color name="colorPrimary">#8FA184</color>
+  <color name="colorPrimaryDark">#1A1210</color>
+  <color name="colorAccent">#D86E4E</color>
+  <!-- 与 values/ 保持一致：启动屏底色跟图标同为纯黑，否则深色模式下启动屏会比图标亮一档。 -->
+  <color name="maui_splash_color">#000000</color>
+</resources>

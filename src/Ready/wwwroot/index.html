@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="hsl(18 32% 98%)" />
+    <title>Ready! — 捕捉下一个好游戏</title>
+    <base href="/" />
+    <link rel="stylesheet" href="app.css" />
+    <!-- 标签页图标。WebView2 里看不到它，但用 --remote-debugging-port 在浏览器里
+         打开调试时会用到，成本只有一行。 -->
+    <link rel="icon" href="brand/appicon.png" />
+</head>
+<body>
+    <!-- 这里刻意留空：原来写的是「正在准备你的灵感工作台…」，本意是首帧到 Blazor
+         接管之间的过渡文案。默认底色由 body / #app 的 surface 色提供，所以没有它
+         也不会露出白屏；真出现空白，说明启动没发生，该去查宿主而不是加提示。 -->
+    <div id="app"></div>
+    <!-- autostart="false" 不是可选写法：BlazorWebView 要先注入 window.external 桥，
+         再自己调 Blazor.start()。少了这个属性，脚本会在桥就绪前自启动并抛
+         TypeError，页面就永远停在空白的第一帧上。
+         代价是页面不再自启，两个宿主都得自己补这一步：WinForms 在
+         MainForm.OnNavigationCompleted 里调，MAUI 的 BlazorWebView 本来就会调。 -->
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <script src="app.js"></script>
+</body>
+</html>

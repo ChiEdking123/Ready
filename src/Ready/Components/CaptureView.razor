@@ -1,0 +1,140 @@
+@* 首屏这条横幅原本是两句固定的宣传语。同样的位置、同样的体积，换成一条随机
+   抽出的开发者语录：它说的是这门手艺的共识，比「好游戏，从一句灵感开始」更像
+   一个人会贴在桌前的话。语录每次启动换一条，见 GameQuotes。 *@
+<section class="hero quote-hero" aria-label="开发者语录">
+    <span class="eyebrow">WORDS FROM THE MAKERS</span>
+    <blockquote class="quote-text">@Quote.Text</blockquote>
+    <cite class="quote-author">@Quote.Author<span class="quote-source">@Quote.Source</span></cite>
+</section>
+
+@* 标题只留一行。第二句抒情（「现在的想法，就是未来的游戏。」）在手机上会把输入框
+   推到首屏之外，删掉之后这一行仍保留「保存状态」，因为它是这块唯一还提供信息的字。
+   窄屏整块隐藏——顶栏已经在说「捕捉灵感 / 继续完善」。 *@
+<div class="page-heading capture-heading">
+    <div><h1>@(Store.EditingId is null ? "捕捉新构思" : "继续完善构思")</h1></div>
+    <div class="draft-state"><span class="status-dot"></span>@(Store.HasUnsavedChanges ? "草稿已自动保留" : "所有更改已保存")</div>
+</div>
+
+@* 以前这里是五张各自带底色、圆角与标题行的卡片，每张还要额外占一行说明。手机首屏
+   只放得下第一张卡片的标题，输入框常常在折叠线以下。改成一块连续的工作区之后，
+   同样的内容只用分隔线切段：读起来是一次从上往下的填写，而不是反复「进入卡片」。 *@
+<div class="capture-sheet">
+    <section class="sheet-section sheet-summary">
+        <div class="sheet-head">
+            <label class="field-label-inline" for="idea-summary">一句话总结 <span class="required">必填</span></label>
+            <span class="summary-count" aria-hidden="true">@(Store.Document.Draft.Summary.Length) / 300</span>
+        </div>
+        @* No @bind:event="oninput" here. Every keystroke syncing to .NET means a re-render
+           while the Chinese IME is still composing, and the write-back resets the
+           composition and closes the candidate window. The field is synced when it loses
+           focus instead, so typing stays entirely inside the DOM. *@
+        <textarea id="idea-summary" class="summary-input" rows="3" maxlength="300" aria-label="一句话总结，必填"
+                  placeholder="例如：一款在时间循环里经营深夜食堂的治愈系模拟游戏。"
+                  @bind="Store.Document.Draft.Summary" @bind:event="onchange" @bind:after="DraftChanged"></textarea>
+        <div class="input-meta"><span>不用完美，清楚就好。</span></div>
+    </section>
+
+    <section class="sheet-section">
+        <div class="sheet-head">
+            <h2 class="sheet-title">让它有个轮廓</h2>
+            <span class="sheet-hint">点选最接近的方向，也可以自由组合</span>
+        </div>
+        <TagPicker Field="genres" Label="游戏类型" Number="01" Selected="Store.Document.Draft.Genres" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+        <TagPicker Field="perspectives" Label="游戏视角" Number="02" Selected="Store.Document.Draft.Perspectives" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+        <TagPicker Field="art" Label="画面风格" Number="03" Selected="Store.Document.Draft.ArtStyles" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+        <TagPicker Field="settings" Label="背景设定" Number="04" Selected="Store.Document.Draft.Settings" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+        <TagPicker Field="roles" Label="角色构成" Number="05" Hint="按选择顺序排列角色，第一个就是你的主角。" Hero="true" Selected="Store.Document.Draft.Roles" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+    </section>
+
+    <section class="sheet-section detail-section @(detailsOpen ? "open" : "")">
+        <button class="detail-toggle" type="button" @onclick="() => detailsOpen = !detailsOpen" aria-expanded="@detailsOpen">
+            <span class="detail-toggle-text"><strong>详细设计</strong><small>体验、平台与节奏</small></span>
+            <span class="toggle-meta">@(detailsOpen ? "收起" : "可选") <Icon Name="down" Size="18" /></span>
+        </button>
+        @if (detailsOpen)
+        {
+            <div class="detail-body">
+                <label class="references-label" for="references">参考作品 / 对标作品 <span>选填</span></label>
+                <input id="references" class="references-input" maxlength="1000"
+                       @bind="Store.Document.Draft.References" @bind:event="onchange" @bind:after="DraftChanged" />
+                <TagPicker Field="platforms" Label="目标平台" Selected="Store.Document.Draft.Platforms" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+                <TagPicker Field="audiences" Label="目标受众" Selected="Store.Document.Draft.Audiences" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+                <TagPicker Field="durations" Label="预计总时长" Selected="Store.Document.Draft.Durations" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+                <TagPicker Field="loops" Label="核心循环时长" Selected="Store.Document.Draft.LoopDurations" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+                <TagPicker Field="emotions" Label="情绪目标" Selected="Store.Document.Draft.Emotions" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+                <TagPicker Field="inputs" Label="输入方式" Selected="Store.Document.Draft.Inputs" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+            </div>
+        }
+    </section>
+
+    <section class="sheet-section detail-section @(planOpen ? "open" : "")">
+        <button class="detail-toggle" type="button" @onclick="() => planOpen = !planOpen" aria-expanded="@planOpen">
+            <span class="detail-toggle-text"><strong>执行规划</strong><small>规模与资源上的取舍</small></span>
+            <span class="toggle-meta">@(planOpen ? "收起" : "可选") <Icon Name="down" Size="18" /></span>
+        </button>
+        @if (planOpen)
+        {
+            <div class="detail-body">
+                <fieldset class="scale-field">
+                    <legend class="field-label">游戏规模</legend>
+                    <div class="scale-options">
+                        @foreach (var scale in TagCatalog.Scales)
+                        {
+                            <button type="button" class="scale-option @(Store.Document.Draft.Scale == scale ? "selected" : "")" @onclick="() => ChooseScale(scale)">
+                                <span>@scale</span>
+                                @if (Store.Document.Draft.Scale == scale) { <Icon Name="check" Size="16" /> }
+                            </button>
+                        }
+                    </div>
+                </fieldset>
+                <TagPicker Field="resources" Label="资源倾向" Hint="你打算把主要精力投入在哪里？" Selected="Store.Document.Draft.Resources" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+                <TagPicker Field="nongoals" Label="不做什么" Hint="提前划定边界：明确排除的东西，比想做的更能守住范围。" Selected="Store.Document.Draft.NonGoals" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+                <TagPicker Field="monetization" Label="商业模式" Selected="Store.Document.Draft.Monetization" Custom="Store.Document.CustomTags" Changed="DraftChanged" />
+            </div>
+        }
+    </section>
+</div>
+
+@* 提交按钮在顶栏（长表单滚动时也够得到），这里只留「结束编辑」。 *@
+@if (Store.EditingId is not null)
+{
+    <div class="capture-actions">
+        <div class="clear-actions">
+            <button class="button text-button" @onclick="CancelEdit"><Icon Name="close" Size="16" />结束编辑</button>
+        </div>
+    </div>
+}
+@code {
+    [Parameter, EditorRequired] public IAppStore Store { get; set; } = default!;
+
+    /// <summary>本次运行展示的那一条语录，由 App 抽好传进来，保证切页面不重抽。</summary>
+    [Parameter, EditorRequired] public GameQuote Quote { get; set; } = default!;
+
+    bool detailsOpen, planOpen;
+
+    protected override void OnInitialized()
+    {
+        // Reopening an idea that already has detail content should show it immediately.
+        var editing = Store.Document.Draft;
+        detailsOpen = editing.Platforms.Count > 0 || editing.Audiences.Count > 0 || editing.Durations.Count > 0
+            || editing.LoopDurations.Count > 0 || editing.Emotions.Count > 0 || editing.Inputs.Count > 0
+            || editing.References.Length > 0;
+        planOpen = editing.Scale.Length > 0 || editing.Resources.Count > 0 || editing.NonGoals.Count > 0
+            || editing.Monetization.Count > 0;
+    }
+
+    async Task DraftChanged()
+    {
+        if (Store.Document.Settings.AutosaveDraft) await Store.SaveDraftAsync();
+    }
+
+    async Task ChooseScale(string scale)
+    {
+        Store.Document.Draft.Scale = Store.Document.Draft.Scale == scale ? "" : scale;
+        await DraftChanged();
+    }
+
+    // 清除 / 撤回 / 提交都搬到了顶栏（提交的实现在 App.razor 的 SaveFromBar），
+    // 因为表单很长，这些东西必须在滚动时也够得到。
+    void CancelEdit() => Store.CancelEdit();
+}

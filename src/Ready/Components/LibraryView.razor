@@ -1,0 +1,233 @@
+@implements IDisposable
+@* 这里曾经有一块标题区（「灵感有了归处。」+ 新构思）和两张统计卡（全部构思 /
+   置顶灵感）。标题与顶栏的「构思库」重复，统计卡的数字在筛选后还会与列表对不上，
+   所以整块删掉：进入这个页面看到的第一件东西就是搜索栏，下面直接是构思。
+   「新构思」仍在顶栏和空状态里，入口没有减少。 *@
+<div class="library-toolbar">
+    <div class="library-row">
+        <div class="search-box">
+            <Icon Name="search" Size="18" />
+            <input placeholder="搜索构思、标签、参考作品…" value="@queryDraft" @oninput="OnQueryInput" aria-label="搜索构思" />
+            @if (queryDraft.Length > 0) { <button class="icon-button small" @onclick="ClearQuery" aria-label="清除搜索"><Icon Name="close" Size="15" /></button> }
+        </div>
+    </div>
+    <div class="library-row library-row-filters">
+        <div class="segmented">
+            <button class="@(filter == "all" ? "active" : "")" @onclick='() => filter = "all"'>全部</button>
+            <button class="@(filter == "pinned" ? "active" : "")" @onclick='() => filter = "pinned"'>已置顶</button>
+        </div>
+        <div class="sort-select">
+            <Icon Name="sort" Size="17" />
+            <select @bind="sort" aria-label="构思排序">
+                <option value="updated">最近更新</option>
+                <option value="created">最近创建</option>
+                <option value="summary">按名称</option>
+            </select>
+        </div>
+    </div>
+</div>
+@if (Results.Count > 0)
+{
+    <div class="idea-list">
+        @foreach (var idea in Results)
+        {
+            <article class="idea-card">
+                @* 整张卡片上半区就是「继续构思」的点击区：以前这里有一个胶囊按钮，占一整行
+                   还只是重复「点卡片」这件事。用透明按钮铺满内容层，键盘与读屏仍然拿到一个
+                   有名字的 action，鼠标点哪儿都一样。下面是真实按钮，所以覆盖层必须
+                   让出上半区之外的区域（见 .idea-hit 的 inset）。 *@
+                <button class="idea-hit" @onclick="() => Edit(idea)" aria-label="继续构思：@idea.Summary"></button>
+                <div class="idea-card-top">
+                    <span class="idea-date">@(idea.UpdatedAt.ToLocalTime().ToString("MM 月 dd 日"))</span>
+                    <button class="pin-button @(idea.Pinned ? "pinned" : "")" @onclick="() => Pin(idea)" aria-label="@(idea.Pinned ? "取消置顶" : "置顶")"><Icon Name="pin" Size="17" /></button>
+                </div>
+                <h2>@idea.Summary</h2>
+                <div class="card-tags">@foreach (var tag in PreviewTags(idea)) { <span>@tag</span> }</div>
+                @if (!string.IsNullOrEmpty(idea.Scale)) { <div class="idea-scale"><span class="status-dot"></span>@idea.Scale</div> }
+                <div class="idea-card-bottom">
+                    <span class="updated-time">@FormatUpdated(idea.UpdatedAt)</span>
+                    <div class="card-actions">
+                        <button class="icon-button small" title="复制构思" aria-label="复制构思" @onclick="() => Duplicate(idea)"><Icon Name="copy" Size="17" /></button>
+                        <button class="icon-button small delete" title="删除构思" aria-label="删除构思" @onclick="() => OnDelete.InvokeAsync(idea)"><Icon Name="trash" Size="17" /></button>
+                    </div>
+                </div>
+            </article>
+        }
+    </div>
+}
+else
+{
+    <div class="empty-state">
+        <div class="empty-illustration"><Icon Name="spark" Size="30" /></div>
+        <h2>@(Store.Document.Ideas.Count == 0 ? "下一款游戏，从这里开始。" : "没有找到匹配的构思")</h2>
+        <p>@(Store.Document.Ideas.Count == 0 ? "写下第一句灵感，给它一个生长的机会。" : "换个关键词试试，或者清除当前筛选。")</p>
+        @if (Store.Document.Ideas.Count == 0)
+        {
+            <button class="button primary" @onclick="NewIdea"><Icon Name="plus" />捕捉第一个构思</button>
+        }
+        else
+        {
+            <button class="button outlined" @onclick="ResetFilter">查看全部构思</button>
+        }
+    </div>
+}
+@code {
+    [Parameter, EditorRequired] public IAppStore Store { get; set; } = default!;
+    [Parameter] public EventCallback<string?> OnEdit { get; set; }
+    [Parameter] public EventCallback<IdeaRecord> OnDelete { get; set; }
+    [Parameter] public EventCallback<string> OnMessage { get; set; }
+
+    // 输入框绑的是 queryDraft，真正参与筛选的 query 落后它一个节拍。
+    // 直接绑 query 时，每敲一个字符都要对全部构思做一次全字段匹配——手机上拼音输入
+    // 一次会连发好几个 input 事件，主线程就是这么被顶住的。100ms 足够把连续的字符
+    // 合并成一次筛选，又短到不让人觉得列表「迟钝」。
+    string queryDraft = "";
+    string query = "";
+    string filter = "all";
+    string sort = "updated";
+
+    CancellationTokenSource? settle;
+
+    const int SettleMs = 100;
+
+    // 低于这个条数就直接筛：几百条以内一次全表匹配是微秒级，用户不该为此等一个合并窗口。
+    const int InstantFilterLimit = 40;
+
+    // Id → 预拼好的搜索文本。只有数据真的变了（数量、更新时间、置顶状态）才重建：
+    // 每敲一个字都重新 string.Join 全部标签是这里最贵的一段。
+    readonly Dictionary<string, string> textIndex = [];
+    long indexStamp = -1;
+
+    // 排序结果也缓存：键盘输入期间每帧重排整个列表，在几百条构思时同样能感到顿挫。
+    List<IdeaRecord>? cached;
+    long cacheStamp = -1;
+
+    List<IdeaRecord> Results
+    {
+        get
+        {
+            var stamp = Stamp();
+            if (cached is not null && cacheStamp == stamp) return cached;
+            EnsureIndex(stamp);
+            var filtered = Store.Document.Ideas
+                .Where(i => filter == "all" || i.Pinned)
+                .Where(i => textIndex.TryGetValue(i.Id, out var text) && IdeaSearch.Matches(text, query));
+            cached = (sort switch
+            {
+                "summary" => filtered.OrderByDescending(i => i.Pinned).ThenBy(i => i.Summary, StringComparer.CurrentCulture),
+                "created" => filtered.OrderByDescending(i => i.Pinned).ThenByDescending(i => i.CreatedAt),
+                _ => filtered.OrderByDescending(i => i.Pinned).ThenByDescending(i => i.UpdatedAt)
+            }).ToList();
+            cacheStamp = stamp;
+            return cached;
+        }
+    }
+
+    // 一个足以判断「列表内容变没变」的廉价指纹：条数 + 各条更新时间的 ticks 之和 +
+    // 置顶条数。任何一次编辑都会刷新 UpdatedAt，所以不需要逐条比较。
+    long Stamp()
+    {
+        long sum = Store.Document.Ideas.Count;
+        foreach (var idea in Store.Document.Ideas) sum += idea.UpdatedAt.UtcTicks + (idea.Pinned ? 1 : 0);
+        return sum;
+    }
+
+    void EnsureIndex(long stamp)
+    {
+        if (indexStamp == stamp && textIndex.Count == Store.Document.Ideas.Count) return;
+        textIndex.Clear();
+        foreach (var idea in Store.Document.Ideas) textIndex[idea.Id] = IdeaSearch.Text(idea);
+        indexStamp = stamp;
+    }
+
+    void Invalidate()
+    {
+        // 手动作废：查询词、筛选或排序变了，指纹本身不会变，得显式清掉。
+        cached = null;
+        cacheStamp = -1;
+    }
+
+    void OnQueryInput(ChangeEventArgs e)
+    {
+        queryDraft = e.Value?.ToString() ?? "";
+        settle?.Cancel();
+        settle?.Dispose();
+        // 列表还小的时候，即时筛选的代价低于一次 100ms 的等待，直接出结果更跟手；
+        // 只有构思多到需要保护主线程时才合并输入。
+        if (Store.Document.Ideas.Count <= InstantFilterLimit) { ApplyQuery(); return; }
+        settle = new CancellationTokenSource();
+        _ = SettleAsync(settle.Token);
+    }
+
+    async Task SettleAsync(CancellationToken token)
+    {
+        try { await Task.Delay(SettleMs, token); }
+        catch (TaskCanceledException) { return; }
+        if (token.IsCancellationRequested) return;
+        await InvokeAsync(ApplyQuery);
+    }
+
+    void ApplyQuery()
+    {
+        query = queryDraft;
+        Invalidate();
+        StateHasChanged();
+    }
+
+    void ClearQuery()
+    {
+        settle?.Cancel();
+        queryDraft = "";
+        query = "";
+        Invalidate();
+    }
+
+    void ResetFilter()
+    {
+        settle?.Cancel();
+        queryDraft = "";
+        query = "";
+        filter = "all";
+        Invalidate();
+    }
+
+    // 卡片上按「类型 → 视角 → 画风 → 设定 → 角色」的顺序取几个标签，角色排在最后才不会被挤掉。
+    static IEnumerable<string> PreviewTags(IdeaRecord idea) =>
+        idea.Genres
+            .Concat(idea.Perspectives)
+            .Concat(idea.ArtStyles)
+            .Concat(idea.Settings)
+            .Concat(idea.Roles)
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .Take(5);
+
+    // UpdatedAt 以 UTC 存储，先换算到本地再判断“今天”，否则跨时区会显示错日期。
+    static string FormatUpdated(DateTimeOffset updatedAt)
+    {
+        var local = updatedAt.ToLocalTime();
+        return local.Date == DateTimeOffset.Now.Date ? local.ToString("今天 HH:mm") : "更新于 " + local.ToString("yyyy.MM.dd");
+    }
+
+    async Task NewIdea() => await OnEdit.InvokeAsync(null);
+
+    async Task Edit(IdeaRecord idea) => await OnEdit.InvokeAsync(idea.Id);
+
+    async Task Duplicate(IdeaRecord idea)
+    {
+        await Store.DuplicateAsync(idea);
+        Invalidate();
+        await OnMessage.InvokeAsync("已复制构思。");
+    }
+
+    async Task Pin(IdeaRecord idea)
+    {
+        await Store.TogglePinAsync(idea.Id);
+        Invalidate();
+    }
+
+    public void Dispose()
+    {
+        settle?.Cancel();
+        settle?.Dispose();
+    }
+}
