@@ -8,7 +8,7 @@
 
 **请不要通过公开 Issue 报告安全问题。**
 
-请通过 GitHub 的 [私密漏洞报告](https://github.com/ChiEdking123/Ready/security/advisories/new) 提交，或在必要时发邮件给维护者。请在报告中包含：
+请通过 GitHub 的 [私密漏洞报告](https://github.com/ChiEdking123/Ready-/security/advisories/new) 提交，或在必要时发邮件给维护者。请在报告中包含：
 
 - 受影响的版本或提交
 - 复现步骤

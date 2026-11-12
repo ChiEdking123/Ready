@@ -12,7 +12,7 @@ Ready! is a **local-first** ideation workbench for game creators. **Android is t
 Fully offline: no network calls, no accounts, no telemetry. The Android manifest does not request `INTERNET`.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml)
+[![CI](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml)
 
 > The primary documentation is in Chinese ([README.md](README.md)). This file is a summary for English readers.
 
@@ -35,12 +35,19 @@ Ready! opens straight into a text field. The one-sentence summary is the only re
 
 ## Download
 
-See [Releases](https://github.com/ChiEdking123/Ready/releases).
+See [Releases](https://github.com/ChiEdking123/Ready-/releases).
 
 - **Android** — `app.ready.gamedesign-*-Signed.apk`, arm64 only, Android 6.0 (API 23) and above.
 - **Windows** — build from source for now.
 
 ## Build from source
+
+```powershell
+git clone https://github.com/ChiEdking123/Ready-.git
+cd Ready-
+```
+
+The trailing hyphen is part of the real repository name on GitHub, not a typo.
 
 ```powershell
 dotnet workload install maui-android          # Android only

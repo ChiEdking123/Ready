@@ -12,7 +12,7 @@ Ready! 是一个面向游戏创作者的**本地优先**构思工作台。**Andr
 完全离线：不联网、不登录、不上传任何数据，Android 清单里没有 `INTERNET` 权限。
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml)
+[![CI](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ## 它解决什么问题
@@ -42,12 +42,19 @@ Ready! 的做法是：打开就能打字。一句话总结是唯一必填项，�
 
 ## 下载
 
-到 [Releases](https://github.com/ChiEdking123/Ready/releases) 取最新版本。
+到 [Releases](https://github.com/ChiEdking123/Ready-/releases) 取最新版本。
 
 - **Android**：`app.ready.gamedesign-*-Signed.apk`，仅 arm64，Android 6.0（API 23）及以上。
 - **Windows**：目前需自行构建，见下节。
 
 ## 从源码构建
+
+```powershell
+git clone https://github.com/ChiEdking123/Ready-.git
+cd Ready-
+```
+
+> 仓库名结尾的连字符是 GitHub 上真实的仓库名，不是笔误。
 
 ### 环境
 
