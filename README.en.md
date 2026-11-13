@@ -5,81 +5,65 @@
 > [!IMPORTANT]
 > **This project is made entirely by AI.**
 > Requirements, UI design, implementation and documentation were all produced by an AI coding assistant; the human only set the direction, reviewed the results and made the decisions.
-> The code is covered by automated tests and has been verified on real devices, but please treat it as an AI-generated independent project rather than a product with a maintenance team: there is no formal quality guarantee and no security audit. File an issue if something breaks; do not assume anyone is on call.
 
 Ready! is a **local-first** ideation workbench for game creators. **Android is the primary target** (.NET 10 / .NET MAUI + Blazor Hybrid); Windows is served by a separate WinForms host that shares the exact same Blazor UI.
 
-Fully offline: no network calls, no accounts, no telemetry. The Android manifest does not request `INTERNET`.
+Fully offline: no network calls, no accounts, no data uploaded anywhere.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml)
-
-> The primary documentation is in Chinese ([README.md](README.md)). This file is a summary for English readers.
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ## The problem
 
-When a game idea arrives, it is usually one sentence long. Most note-taking tools make you create a document, pick a title, choose a category first — by the time the structure is in place, the spark is gone.
+When a game designer gets an idea, it usually lasts only an instant. Most note-taking tools make you create a document, pick a title, choose a category first — by the time the structure is in place, the spark is gone.
 
-Ready! opens straight into a text field. The one-sentence summary is the only required input; everything else is optional tags you can tap in seconds. Detailed design sections stay collapsed until you actually want to go deeper.
+Ready! opens straight into a text field. The one-sentence summary is the only required input; everything else is optional tags you can tap in seconds to give the idea a shape. Detailed design stays collapsed until you actually want to go deeper.
 
 ## Features
 
-- **One-sentence summary + quick tags** — genre, perspective, art style, setting, characters. All multi-select and extensible with custom values.
-- **Ordered characters** — listed in the order you pick them; the first one is the protagonist.
-- **Details stay out of the way** — references, platform, audience, playtime, core loop, mood, input, scope, resources, non-goals and business model are collapsed by default.
-- **Idea library** — search, pin, edit, duplicate, delete and sort. The search bar is the first thing on the page.
-- **Local persistence** — JSON file with atomic writes, corrupt-file backup and import/export. Writes are serialized; a failed write rolls back memory and reports the failure honestly instead of claiming success.
-- **Appearance** — light / dark / system, five accent palettes, five UI scale steps.
-- **Accessible dialogs** — full keyboard operation (`Tab` cycles inside, `Esc` cancels); action buttons stack vertically on mobile with 40px+ touch targets.
-- **Chinese IME safe** — inputs sync on blur, never on every keystroke, so composition and candidate windows are never disturbed.
+- **One-sentence summary + quick tags**: genre, perspective, art style, setting, characters — all multi-select and extensible with custom values.
+- **Details come later**: references, platform, audience, playtime, core loop, mood, input, scope, resources, non-goals and business model, collapsed by default.
+- **Idea library**: search, pin, edit, duplicate, delete and sort. The page opens straight onto the search bar, with no stat cards in front of it.
+- **Fully local**: JSON persistence with atomic writes, corrupt-file backup and import/export. Writes queue up serially; a failed write rolls memory back and reports the failure honestly — you never end up with "the UI said saved, the restart says otherwise".
+- **Appearance**: light / dark / follow system, five accent palettes, five UI scale steps (desktop also supports `Ctrl` + wheel).
+- **Accessible**: dialogs are fully keyboard operable (`Tab` cycles inside, `Esc` cancels).
 
-## Download
+## Usage notes
 
-See [Releases](https://github.com/ChiEdking123/Ready-/releases).
+- **`Ctrl + wheel`**: scales the whole UI (85%–140%); it is the same value as "UI scale" in settings. Desktop only.
+- **Accent color**: switching it also tints the neutrals (background, dividers, body text) toward that hue, with the same ramp in dark mode.
+- **Close behavior**: closing asks whether to keep running in the background or exit; the answer applies to that one time unless you tick "don't ask again". Windows only.
+- **Android back key**: closes overlays first, then returns to the capture page; on the capture page one press shows "press back again to exit" and only a second press within 2 seconds really exits. An unsaved draft prompts for confirmation first.
 
-- **Android** — `ready-0.1.0-arm64.apk`, arm64 only, Android 6.0 (API 23) and above. You will need to allow installs from unknown sources.
+## Data and privacy
 
-  Release builds are signed with a project-owned key (`CN=Ready!, OU=Ready Contributors`). It will not be rotated, since changing it would block in-place upgrades for installed users.
-- **Windows** — build from source for now.
+App data lives in `ready-data.json` inside the OS-provided per-app data directory. No network, accounts or telemetry.
 
-## Build from source
+JSON backups contain **created ideas only**; custom tags and settings live in the app's local data but are not part of an idea export.
 
-```powershell
-git clone https://github.com/ChiEdking123/Ready-.git
-cd Ready-
-```
-
-The trailing hyphen is part of the real repository name on GitHub, not a typo.
-
-```powershell
-dotnet workload install maui-android          # Android only
-dotnet build src/Ready.WinForms/Ready.WinForms.csproj   # Windows host
-dotnet build src/Ready/Ready.csproj -c Release          # Android, Release
-dotnet test  tests/Ready.Tests/Ready.Tests.csproj
-```
-
-Requirements: .NET 10 SDK (`global.json` pins 10.0.100), JDK 17 and Android SDK 36 for the Android target. The Windows host needs only WinForms + the WebView2 runtime.
-
-## Architecture notes
+## Project structure
 
 ```text
-src/Ready/            # Android head (net10.0-android)
-  Models/             # ideas, settings, tag catalog, export models
-  Services/           # persistence, store, source-generated JSON context
-  Components/         # shared Blazor UI (linked by the Windows head)
-  Platforms/Android/  # native entry point, safe areas, system bar colours
+src/Ready/            # Android head (net10.0-android, primary target)
+  Models/             # ideas, settings, tag catalog and export models
+  Services/           # local persistence, idea management, source-generated JSON context
+  Components/         # shared Blazor UI (the Windows head links the same files)
+  Platforms/Android/  # native entry point, safe areas, system bar colors
   wwwroot/            # responsive styles and shortcuts
 src/Ready.WinForms/   # Windows head (WinForms + WebView2 on HWND)
 tests/Ready.Tests/    # compiles models and storage directly; no Android SDK needed
+docs/                 # build, IME and icon-pipeline details
 ```
 
-Two decisions worth calling out:
+## Contributing
 
-- **WinForms, not WPF/WinUI3, on Windows.** Of the three official Blazor hosts, only WinForms hosts WebView2 on a real HWND. The other two use visual hosting, where third-party IMEs cannot obtain a caret rectangle and never draw a candidate window.
-- **`AndroidLinkMode=SdkOnly`, never `Full`.** Full saves ~1.5 MB but silently breaks the JS↔.NET bridge on .NET 10 MAUI Blazor Hybrid: the app launches, logs no errors, and never renders past the loading text.
-
-More detail lives in `docs/` (Chinese).
+Issues and PRs are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before starting. Report security issues privately via [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT License](LICENSE). Third-party components: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Released under the [MIT License](LICENSE).
+
+Third-party components and their licenses: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+The code and documentation in this project are AI-generated.
