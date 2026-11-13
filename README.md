@@ -1,5 +1,9 @@
 # Ready!
 
+<p align="center">
+  <img src="logo/512x512.png" width="128" alt="Ready! logo">
+</p>
+
 > 好游戏，从一句灵感开始。
 
 > [!IMPORTANT]
@@ -13,6 +17,13 @@ Ready! 是一个面向游戏创作者的**本地优先**构思工作台。**Andr
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/download/dotnet/10.0)
+
+## 截图
+
+<p align="center">
+  <img src="assets/screenshots/capture-android.jpg" alt="图片无法预览 · assets/screenshots/capture-android.jpg" width="240">
+  <img src="assets/screenshots/capture-windows.png" alt="图片无法预览 · assets/screenshots/capture-windows.png" width="560">
+</p>
 
 ## 它解决什么问题
 

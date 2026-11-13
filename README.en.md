@@ -1,5 +1,9 @@
 # Ready!
 
+<p align="center">
+  <img src="logo/512x512.png" width="128" alt="Ready! logo">
+</p>
+
 > Every good game starts with a sentence.
 
 > [!IMPORTANT]
@@ -13,6 +17,13 @@ Fully offline: no network calls, no accounts, no data uploaded anywhere.
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/download/dotnet/10.0)
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/capture-android.jpg" alt="Preview unavailable · assets/screenshots/capture-android.jpg" width="240">
+  <img src="assets/screenshots/capture-windows.png" alt="Preview unavailable · assets/screenshots/capture-windows.png" width="560">
+</p>
 
 ## The problem
 
