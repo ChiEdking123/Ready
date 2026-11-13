@@ -11,7 +11,7 @@ Ready! is a **local-first** ideation workbench for game creators. **Android is t
 Fully offline: no network calls, no accounts, no data uploaded anywhere.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready-/actions/workflows/ci.yml)
+[![CI](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiEdking123/Ready/actions/workflows/ci.yml)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ## The problem
