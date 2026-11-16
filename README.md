@@ -64,8 +64,21 @@ src/Ready/            # Android 头（net10.0-android，主目标）
   wwwroot/            # 响应式样式与快捷键
 src/Ready.WinForms/   # Windows 头（WinForms + WebView2，HWND 托管）
 tests/Ready.Tests/    # 直接编译模型与存储层，不需要 Android SDK
+tools/                # 构建脚本与 Inno Setup 安装包定义
 docs/                 # 构建、输入法与图标流水线的细节说明
 ```
+
+## 安装包
+
+Windows 安装包（自包含，目标机不需要预装 .NET）：
+
+```powershell
+pwsh -File tools\build-installer.ps1
+```
+
+产物在 `artifacts\installer\Ready-<版本>-win-x64-setup.exe`，约 37MB。需要先装 [Inno Setup 6](https://jrsoftware.org/isdl.php)（`winget install --id JRSoftware.InnoSetup -e`）。版本号取自 `Directory.Build.props`。
+
+安装到 `%LOCALAPPDATA%\Programs\Ready`，不弹 UAC。卸载时会问是否连同构思数据一起删除，默认保留。
 
 ## 参与
 
